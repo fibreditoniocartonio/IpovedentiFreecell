@@ -13,6 +13,12 @@ var gameState = {
     seed: 1
 };
 
+// Undo Stack
+var undoStack = [];
+
+// Variabile per evitare input durante l'auto-finish
+var isAutoFinishing = false;
+
 var view = {
     scale: 1, 
     panning: false,
@@ -32,11 +38,7 @@ function ms_srand(seed) {
 }
 
 function ms_rand() {
-    // Aggiornamento stato: (state * 214013 + 2531011) modulo 2^32
-    // | 0 forza la conversione a intero 32-bit con segno, replicando il comportamento C
     ms_rng_state = (ms_rng_state * 214013 + 2531011) | 0;
-    
-    // Output: (state >> 16) & 0x7fff
     return (ms_rng_state >> 16) & 0x7fff;
 }
 
@@ -56,13 +58,15 @@ function initGame() {
 }
 
 function startNewGameLogic(seed) {
+    isAutoFinishing = false;
     setupDeal(seed);
+    undoStack = []; 
     saveGame();
     render();
     speakText("Partita numero " + seed);
 }
 
-/* --- GENERAZIONE MAZZO (LOGICA MICROSOFT CORRETTA) --- */
+/* --- GENERAZIONE MAZZO --- */
 function setupDeal(seed) {
     gameState.seed = seed;
     gameState.freecells = [null, null, null, null];
@@ -74,45 +78,35 @@ function setupDeal(seed) {
         gameState.tableau.push([]);
     }
 
-    // 1. Inizializza il mazzo (0-51)
     var deck = [];
     for (var i = 0; i < 52; i++) {
         deck.push(i);
     }
 
-    // 2. Mescola (Algoritmo Microsoft Backward Shuffle)
     ms_srand(seed);
     for (var i = 51; i > 0; i--) {
         var pos = ms_rand() % (i + 1);
-        
-        // Scambia deck[i] con deck[pos]
         var temp = deck[i];
         deck[i] = deck[pos];
         deck[pos] = temp;
     }
     
-    // 3. Inverte il mazzo (Microsoft distribuisce dalla fine)
     deck.reverse();
 
-    // 4. Distribuisci le carte nel Tableau
-    // Ordine Semi MS: 0=Fiori(♣), 1=Quadri(♦), 2=Cuori(♥), 3=Picche(♠)
     var msToMySuits = [2, 3, 1, 0]; 
 
     for (var i = 0; i < 52; i++) {
         var val = deck[i];
-        
-        // Decodifica MS (Rank Major)
-        // 0-3 = Assi, 4-7 = Due ...
         var rank = (val >> 2) + 1; 
         var msSuit = (val & 3); 
-
         var suitIdx = msToMySuits[msSuit];
         var suitChar = SUITS[suitIdx];
 
         var card = { 
             rank: rank, 
             suit: suitChar, 
-            color: COLORS[suitChar] 
+            color: COLORS[suitChar],
+            suitIdx: suitIdx
         };
 
         var col = i % 8;
@@ -120,19 +114,55 @@ function setupDeal(seed) {
     }
 }
 
+/* --- UNDO SYSTEM --- */
+function pushUndo() {
+    var stateStr = JSON.stringify(gameState);
+    undoStack.push(stateStr);
+    if (undoStack.length > 255) {
+        undoStack.shift();
+    }
+}
+
+function undoLastMove() {
+    if (isAutoFinishing) return; // Blocca undo se sta finendo da sola
+    
+    if (undoStack.length === 0) {
+        speakText("Nessuna mossa da annullare.");
+        return;
+    }
+    
+    var prevState = undoStack.pop();
+    gameState = JSON.parse(prevState);
+    
+    saveGame();
+    render();
+    speakText("Mossa annullata.");
+}
+
 /* --- SALVATAGGIO --- */
 function saveGame() {
+    if (isAutoFinishing) return; // Non salvare durante l'animazione finale
     try {
-        var json = JSON.stringify(gameState);
-        localStorage.setItem('freecell_grandfather_save', json);
+        var jsonState = JSON.stringify(gameState);
+        localStorage.setItem('freecell_grandfather_save', jsonState);
+
+        var jsonUndo = JSON.stringify(undoStack);
+        localStorage.setItem('freecell_grandfather_undo', jsonUndo);
     } catch(e) { console.error(e); }
 }
 
 function loadGame() {
     try {
-        var json = localStorage.getItem('freecell_grandfather_save');
-        if (json) {
-            gameState = JSON.parse(json);
+        var jsonState = localStorage.getItem('freecell_grandfather_save');
+        if (jsonState) {
+            gameState = JSON.parse(jsonState);
+
+            var jsonUndo = localStorage.getItem('freecell_grandfather_undo');
+            if (jsonUndo) {
+                undoStack = JSON.parse(jsonUndo);
+            } else {
+                undoStack = [];
+            }
             return true;
         }
     } catch(e) { console.error(e); }
@@ -141,10 +171,24 @@ function loadGame() {
 
 function clearSave() {
     localStorage.removeItem('freecell_grandfather_save');
+    localStorage.removeItem('freecell_grandfather_undo');
 }
 
 /* --- LOGICA DI GIOCO --- */
 function handleCardClick(locationType, colIdx, cardIdx) {
+    if (isAutoFinishing) return; // Blocca input se sta finendo
+
+    // 1. Logica click intelligente (Smart Click) per singola carta
+    if (!gameState.selected) {
+        if (trySmartFoundationMove(locationType, colIdx, cardIdx)) {
+            saveGame();
+            render();
+            checkAndTriggerAutoFinish(); // Controlla se QUESTA mossa ha sbloccato la vittoria
+            return;
+        }
+    }
+
+    // 2. Logica Standard di selezione/spostamento
     if (!gameState.selected) {
         trySelect(locationType, colIdx, cardIdx);
         return;
@@ -160,10 +204,200 @@ function handleCardClick(locationType, colIdx, cardIdx) {
         deselect();
         saveGame();
         render();
-        checkWin();
+        checkAndTriggerAutoFinish(); // Controlla se QUESTA mossa ha sbloccato la vittoria
     } else {
         trySelect(locationType, colIdx, cardIdx);
     }
+}
+
+/* Sposta direttamente alla fondazione se possibile (Singolo click dell'utente) */
+function trySmartFoundationMove(type, colIdx, cardIdx) {
+    var card = null;
+    
+    if (type === 'freecell') {
+        card = gameState.freecells[colIdx];
+    } else if (type === 'tableau') {
+        var col = gameState.tableau[colIdx];
+        if (col.length > 0 && cardIdx === col.length - 1) {
+            card = col[col.length - 1];
+        }
+    }
+
+    if (!card) return false;
+
+    // Recupera suitIdx se perso
+    if (card.suitIdx === undefined) card.suitIdx = SUITS.indexOf(card.suit);
+    var fIdx = card.suitIdx;
+
+    var pile = gameState.foundations[fIdx];
+    var canMove = false;
+
+    if (pile.length === 0) {
+        if (card.rank === 1) canMove = true;
+    } else {
+        var top = pile[pile.length - 1];
+        if (top.rank === card.rank - 1) canMove = true;
+    }
+
+    if (canMove) {
+        pushUndo();
+        if (type === 'freecell') {
+            gameState.freecells[colIdx] = null;
+        } else {
+            gameState.tableau[colIdx].pop();
+        }
+        gameState.foundations[fIdx].push(card);
+        speakText(getCardName(card) + " in casa.");
+        return true;
+    }
+    
+    return false;
+}
+
+/* --- LOGICA AUTO-FINISH (SIMULAZIONE) --- */
+
+// Questa funzione viene chiamata dopo ogni mossa.
+// Simula la partita in avanti. Se la simulazione porta alla vittoria, attiva l'animazione reale.
+function checkAndTriggerAutoFinish() {
+    //se non sono state giocate almeno 30 mosse non finire in automatico la partita
+    if (undoStack.length < 30) return;
+
+    // 1. Clona lo stato attuale per non toccare quello vero
+    var simState = JSON.parse(JSON.stringify(gameState));
+    
+    // 2. Esegui la simulazione
+    var simulatedWin = runSimulation(simState);
+
+    // 3. Se la simulazione dice che si vince, avvia la sequenza reale
+    if (simulatedWin) {
+        isAutoFinishing = true;
+        deselect();
+        // Avvia il loop di mosse reali con un piccolo ritardo
+        setTimeout(playAutoFinishStep, 300);
+    } else {
+        // Se non vince automaticamente, controlla solo se abbiamo vinto manualmente
+        checkWinNormal();
+    }
+}
+
+// Ritorna TRUE se la simulazione riesce a mettere tutte e 52 le carte nelle fondazioni
+function runSimulation(simState) {
+    var moved = true;
+    var loopCount = 0;
+    
+    // Continua finché ci sono mosse o raggiungiamo un limite di sicurezza
+    while (moved && loopCount < 100) {
+        moved = false;
+        loopCount++;
+
+        // Controlla Freecells
+        for (var i = 0; i < 4; i++) {
+            var card = simState.freecells[i];
+            if (card) {
+                if (isSafeToFoundation(card, simState.foundations)) {
+                    simState.foundations[card.suitIdx].push(card);
+                    simState.freecells[i] = null;
+                    moved = true;
+                }
+            }
+        }
+
+        // Controlla Tableau
+        for (var i = 0; i < 8; i++) {
+            var col = simState.tableau[i];
+            if (col.length > 0) {
+                var card = col[col.length - 1];
+                if (isSafeToFoundation(card, simState.foundations)) {
+                    simState.foundations[card.suitIdx].push(card);
+                    col.pop();
+                    moved = true;
+                }
+            }
+        }
+    }
+
+    // Conta le carte nelle fondazioni simulate
+    var count = 0;
+    for(var i=0; i<4; i++) count += simState.foundations[i].length;
+    
+    return (count === 52);
+}
+
+// Esegue UNA mossa automatica sulla partita REALE, poi richiama se stessa
+function playAutoFinishStep() {
+    var moved = false;
+    
+    // Cerca una mossa da fare (la stessa logica della simulazione, ma applicata al vero gameState)
+    
+    // 1. Cerca nelle Freecells
+    for (var i = 0; i < 4; i++) {
+        var card = gameState.freecells[i];
+        if (card) {
+            if (isSafeToFoundation(card, gameState.foundations)) {
+                gameState.foundations[card.suitIdx].push(card);
+                gameState.freecells[i] = null;
+                moved = true;
+                break; // Una mossa alla volta per l'animazione
+            }
+        }
+    }
+
+    // 2. Se non ha mosso dalle Freecells, cerca nel Tableau
+    if (!moved) {
+        for (var i = 0; i < 8; i++) {
+            var col = gameState.tableau[i];
+            if (col.length > 0) {
+                var card = col[col.length - 1];
+                if (isSafeToFoundation(card, gameState.foundations)) {
+                    gameState.foundations[card.suitIdx].push(card);
+                    col.pop();
+                    moved = true;
+                    break; 
+                }
+            }
+        }
+    }
+
+    if (moved) {
+        render(); // Aggiorna grafica
+        // Richiama il prossimo passo tra 100ms (velocità animazione)
+        setTimeout(playAutoFinishStep, 100); 
+    } else {
+        // Nessuna mossa trovata (dovrebbe essere finita se la simulazione era corretta)
+        checkWinNormal();
+    }
+}
+
+// Logica "Safe" (Sicura): Una carta può salire se le fondazioni di colore opposto sono pronte
+function isSafeToFoundation(card, foundationsRef) {
+    var fIdx = card.suitIdx;
+    if (card.suitIdx === undefined) fIdx = SUITS.indexOf(card.suit);
+    
+    var currentPile = foundationsRef[fIdx];
+    var nextRankNeeded = currentPile.length + 1;
+    
+    if (card.rank !== nextRankNeeded) return false; 
+    
+    // Assi e Due salgono sempre
+    if (card.rank <= 2) return true;
+
+    var isRed = (card.color === 'red');
+    var minOppositeRank = 14; 
+    
+    for (var s = 0; s < 4; s++) {
+        var suitColor = COLORS[SUITS[s]];
+        if ((isRed && suitColor === 'black') || (!isRed && suitColor === 'red')) {
+            var rank = foundationsRef[s].length;
+            if (rank < minOppositeRank) minOppositeRank = rank;
+        }
+    }
+
+    // Se la carta è X, i colori opposti devono essere almeno X-1 (o meglio X-2 per essere sicuri al 100%, ma X-1 è lo standard Windows)
+    if (card.rank <= minOppositeRank + 1) {
+        return true;
+    }
+
+    return false;
 }
 
 function trySelect(type, colIdx, cardIdx) {
@@ -181,14 +415,14 @@ function trySelect(type, colIdx, cardIdx) {
     if (type === 'tableau') {
         var col = gameState.tableau[colIdx];
         if (col.length === 0) return;
-        if (cardIdx < 0) return;
+        if (cardIdx < 0) return; 
 
         if (isValidStack(col, cardIdx)) {
             var count = col.length - cardIdx;
             gameState.selected = { type: 'tableau', colIdx: colIdx, cardIdx: cardIdx, count: count };
             var card = col[cardIdx];
             if (count > 1) {
-                speakText(count + " carte da " + getCardName(card));
+                speakText(count + " carte partendo da " + getCardName(card));
             } else {
                 speakCard(card);
             }
@@ -229,6 +463,7 @@ function tryMove(source, destType, destIndex) {
             return false;
         }
         if (gameState.freecells[destIndex] === null) {
+            pushUndo(); 
             executeMove(source, destType, destIndex, cardsToMove);
             return true;
         }
@@ -238,14 +473,18 @@ function tryMove(source, destType, destIndex) {
     if (destType === 'foundation') {
         if (cardsToMove.length > 1) return false;
         var pile = gameState.foundations[destIndex];
+        if (movingCard.suit !== SUITS[destIndex]) return false;
+
         if (pile.length === 0) {
             if (movingCard.rank === 1) {
+                pushUndo();
                 executeMove(source, destType, destIndex, cardsToMove);
                 return true;
             }
         } else {
             var top = pile[pile.length - 1];
-            if (top.suit === movingCard.suit && movingCard.rank === top.rank + 1) {
+            if (movingCard.rank === top.rank + 1) {
+                pushUndo();
                 executeMove(source, destType, destIndex, cardsToMove);
                 return true;
             }
@@ -276,11 +515,13 @@ function tryMove(source, destType, destIndex) {
         }
 
         var maxCards = (1 + emptyFreecells) * Math.pow(2, emptyCols);
+        
         if (cardsToMove.length > maxCards) {
             speakText("Spazio insufficiente per " + cardsToMove.length + " carte.");
             return false;
         }
 
+        pushUndo();
         executeMove(source, destType, destIndex, cardsToMove);
         return true;
     }
@@ -305,25 +546,24 @@ function executeMove(source, destType, destIndex, cards) {
     }
 }
 
-function checkWin() {
+function checkWinNormal() {
     var count = 0;
     for(var i=0; i<4; i++) count += gameState.foundations[i].length;
     if (count === 52) {
         speakText("Vittoria! Bravo nonno!");
         clearSave();
-        alert("VITTORIA!");
+        setTimeout(function() { alert("VITTORIA!"); }, 200);
     }
 }
 
 /* --- GESTIONE NUOVA PARTITA --- */
 function askNewGame() {
-    // Genera un seme casuale da proporre
+    if (isAutoFinishing) return;
     var proposedSeed = Math.floor(Math.random() * 32000) + 1;
     var input = document.getElementById('seed-input');
     input.value = proposedSeed;
     
     document.getElementById('modal-overlay').style.display = 'flex';
-    // Metti il focus così può digitare direttamente se vuole
     setTimeout(function() { input.select(); }, 100);
 }
 
@@ -335,7 +575,6 @@ function confirmNewGame() {
     var input = document.getElementById('seed-input');
     var seedVal = parseInt(input.value);
     
-    // Se vuoto o non valido, usa un random
     if (isNaN(seedVal) || seedVal < 1) {
         seedVal = Math.floor(Math.random() * 32000) + 1;
     }
@@ -347,6 +586,16 @@ function confirmNewGame() {
 
 /* --- RENDERING --- */
 function render() {
+
+    var btnUndo = document.getElementById('btn-undo');
+    if (btnUndo) {
+        if (undoStack.length > 0) {
+            btnUndo.style.display = 'block'; // Mostra se ci sono mosse
+        } else {
+            btnUndo.style.display = 'none';
+        }
+    }
+
     var elSeed = document.getElementById('game-seed-display');
     if (elSeed) {
         elSeed.innerText = "Partita: #" + (gameState.seed || 1);

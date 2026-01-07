@@ -8,10 +8,16 @@
 <body>
     <div id="game-world">
         <div id="game-board">
-            <!-- Pulsante Nuova Partita e Numero Seme -->
+            
             <div class="controls-row">
-                <button class="btn-large" onclick="askNewGame()">NUOVA PARTITA</button>
-                <div id="game-seed-display" class="seed-text">Partita: #</div>
+                <div class="left-controls">
+                    <button class="btn-large" onclick="askNewGame()">NUOVA PARTITA</button>
+                    <div id="game-seed-display" class="seed-text">Partita: #</div>
+                </div>
+                
+                <div class="right-controls">
+                    <button id="btn-undo" class="btn-large btn-undo" onclick="undoLastMove()" style="display: none;">ANNULLA MOSSA</button>
+                </div>
             </div>
 
             <div class="top-row">
@@ -27,7 +33,6 @@
         <div id="modal-content">
             <div class="modal-text">Scegli il numero della partita:</div>
             
-            <!-- Input per il numero della partita -->
             <div class="input-container">
                 <input type="number" id="seed-input" min="1" max="1000000" />
             </div>

@@ -24,13 +24,18 @@ body {
     height: 900px; 
 }
 
-/* BARRA SUPERIORE CON BOTTONE E TESTO */
+/* BARRA SUPERIORE MODIFICATA */
 .controls-row {
     display: flex;
-    justify-content: center;
+    justify-content: space-between; /* Spinge gli elementi agli estremi */
     align-items: center; 
     margin-bottom: 20px;
     padding-top: 10px;
+}
+
+.left-controls, .right-controls {
+    display: flex;
+    align-items: center;
 }
 
 .btn-large {
@@ -49,10 +54,19 @@ body {
     background-color: #FFA500;
 }
 
+.btn-undo {
+    background-color: #0077FF;
+    font-size: 24px;
+    color: white;
+}
+.btn-undo:active {
+    background-color: #0055CC;
+}
+
 .seed-text {
     color: white;
     font-size: 24px;
-    margin-left: 30px; 
+    margin-left: 20px; 
     font-weight: normal;
 }
 
@@ -140,7 +154,7 @@ body {
 #modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background-color: rgba(0,0,0,0.9); /* Sfondo molto scuro */
+    background-color: rgba(0,0,0,0.9);
     z-index: 9999;
     display: none; 
     justify-content: center;
@@ -163,13 +177,12 @@ body {
     font-weight: bold;
 }
 
-/* Input gigante per ipovedenti */
 .input-container {
     margin-bottom: 30px;
 }
 
 #seed-input {
-    font-size: 60px; /* Numero grandissimo */
+    font-size: 60px;
     width: 300px;
     text-align: center;
     padding: 10px;
