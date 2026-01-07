@@ -1,8 +1,12 @@
-FreeCell per ipovedenti
+# FreeCell per ipovedenti
 
 Una versione accessibile e semplificata del classico FreeCell, progettata specificamente per persone ipovedenti e ottimizzata per hardware datato.
 
-> **Obiettivo:** Permettere a mio nonno di continuare a giocare al suo passatempo preferito in autonomia, superando le barriere visive e le limitazioni tecnologiche del suo vecchio PC.
+Prova la demo qui: https://fibreditoniocartonio.github.io/IpovedentiFreecell/
+
+---
+
+> **Obiettivo:** Permettere alle persone che non ci vedono di continuare a giocare al suo passatempo preferito in autonomia, superando le barriere visive e le limitazioni tecnologiche del suo vecchio PC.
 
 ---
 
