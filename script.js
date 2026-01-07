@@ -1,4 +1,4 @@
-/* Configurazione di Gioco */
+/* Configurazione di Freecel*/
 var SUITS = ['♠', '♥', '♣', '♦'];
 var COLORS = { '♠': 'black', '♥': 'red', '♣': 'black', '♦': 'red' };
 var NAMES = { 1: 'Asso', 11: 'Fante', 12: 'Regina', 13: 'Re' };
