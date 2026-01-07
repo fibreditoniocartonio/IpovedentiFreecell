@@ -46,7 +46,6 @@ function ms_rand() {
 function initGame() {
     if (loadGame()) {
         render();
-        speakText("Bentornato nonno, partita recuperata.");
     } else {
         var randomSeed = Math.floor(Math.random() * 32000) + 1;
         startNewGameLogic(randomSeed);
@@ -550,7 +549,7 @@ function checkWinNormal() {
     var count = 0;
     for(var i=0; i<4; i++) count += gameState.foundations[i].length;
     if (count === 52) {
-        speakText("Vittoria! Bravo nonno!");
+        speakText("Vittoria!");
         clearSave();
         setTimeout(function() { alert("VITTORIA!"); }, 200);
     }
