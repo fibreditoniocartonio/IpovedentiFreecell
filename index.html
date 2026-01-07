@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>FreeCell per Nonno</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-world">
+        <div id="game-board">
+            <!-- Pulsante Nuova Partita e Numero Seme -->
+            <div class="controls-row">
+                <button class="btn-large" onclick="askNewGame()">NUOVA PARTITA</button>
+                <div id="game-seed-display" class="seed-text">Partita: #</div>
+            </div>
+
+            <div class="top-row">
+                <div id="freecells" class="area"></div>
+                <div id="foundations" class="area"></div>
+            </div>
+            <div id="tableau" class="tableau-area"></div>
+        </div>
+    </div>
+
+    <!-- Modale Conferma con Input Numero -->
+    <div id="modal-overlay">
+        <div id="modal-content">
+            <div class="modal-text">Scegli il numero della partita:</div>
+            
+            <!-- Input per il numero della partita -->
+            <div class="input-container">
+                <input type="number" id="seed-input" min="1" max="1000000" />
+            </div>
+
+            <div class="modal-buttons">
+                <button class="btn-confirm btn-no" onclick="closeModal()">ANNULLA</button>
+                <button class="btn-confirm btn-yes" onclick="confirmNewGame()">OK, AVVIA</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
