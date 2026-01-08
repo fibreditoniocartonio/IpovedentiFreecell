@@ -28,19 +28,30 @@
         </div>
     </div>
 
-    <!-- Modale Conferma con Input Numero -->
+    <!-- Modale Unificato Vittoria e Nuova Partita-->
     <div id="modal-overlay">
         <div id="modal-content">
-            <div class="modal-text">Scegli il numero della partita:</div>
             
-            <div class="input-container">
-                <input type="number" id="seed-input" min="1" max="1000000" />
+            <!-- SEZIONE VITTORIA -->
+            <div id="victory-section" style="display: none;">
+                <div class="modal-text" style="font-size: 70px; color: #FFD700; margin-bottom: 40px;">VITTORIA!</div>
+                <div class="modal-buttons">
+                    <button class="btn-confirm btn-yes" style="width: 100%; font-size: 40px;" onclick="transitionToNewGame()">OK</button>
+                </div>
             </div>
 
-            <div class="modal-buttons">
-                <button class="btn-confirm btn-no" onclick="closeModal()">ANNULLA</button>
-                <button class="btn-confirm btn-yes" onclick="confirmNewGame()">OK, AVVIA</button>
+            <!-- SEZIONE NUOVA PARTITA -->
+            <div id="new-game-section" style="display: none;">
+                <div class="modal-text">Scegli il numero della partita:</div>
+                <div class="input-container">
+                    <input type="number" id="seed-input" min="1" max="31999" />
+                </div>
+                <div class="modal-buttons">
+                    <button class="btn-confirm btn-no" onclick="closeModal()">ANNULLA</button>
+                    <button class="btn-confirm btn-yes" onclick="confirmNewGame()">OK, AVVIA</button>
+                </div>
             </div>
+
         </div>
     </div>
 

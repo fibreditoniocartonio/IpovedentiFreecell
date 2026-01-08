@@ -549,10 +549,25 @@ function checkWinNormal() {
     var count = 0;
     for(var i=0; i<4; i++) count += gameState.foundations[i].length;
     if (count === 52) {
+	isAutoFinishing = false;
         speakText("Vittoria!");
         clearSave();
-        setTimeout(function() { alert("VITTORIA!"); }, 200);
+        showVictoryModal();
     }
+}
+
+function showVictoryModal() {
+    // Nascondiamo la sezione nuova partita e mostriamo quella vittoria
+    document.getElementById('new-game-section').style.display = 'none';
+    document.getElementById('victory-section').style.display = 'block';
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function transitionToNewGame() {
+    // Questa funzione viene chiamata quando preme "OK" sul modale vittoria
+    // Nasconde la vittoria e mostra la selezione numero partita
+    document.getElementById('victory-section').style.display = 'none';
+    askNewGame(); 
 }
 
 /* --- GESTIONE NUOVA PARTITA --- */
@@ -562,12 +577,16 @@ function askNewGame() {
     var input = document.getElementById('seed-input');
     input.value = proposedSeed;
     
+    document.getElementById('victory-section').style.display = 'none';
+    document.getElementById('new-game-section').style.display = 'block';
     document.getElementById('modal-overlay').style.display = 'flex';
     setTimeout(function() { input.select(); }, 100);
 }
 
 function closeModal() {
     document.getElementById('modal-overlay').style.display = 'none';
+    document.getElementById('victory-section').style.display = 'none';
+    document.getElementById('new-game-section').style.display = 'none';
 }
 
 function confirmNewGame() {
